@@ -74,7 +74,7 @@ export async function getWorkoutsForDate(date: string) {
           sets: [],
         });
       }
-      if (row.setNumber != null) {
+      if (row.setNumber != null && row.reps != null) {
         workout.exercises.get(row.exerciseName)!.sets.push({
           setNumber: row.setNumber,
           reps: row.reps,

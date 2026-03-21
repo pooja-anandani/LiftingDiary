@@ -1,6 +1,8 @@
 "use client";
 
+import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Calendar } from "@/components/ui/calendar";
 
 interface DatePickerProps {
   selectedDate: string;
@@ -10,30 +12,26 @@ export default function DatePicker({ selectedDate }: DatePickerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  const selected = new Date(selectedDate + "T00:00:00");
+
+  function handleSelect(date: Date | undefined) {
+    if (!date) return;
+    const iso = date.toISOString().split("T")[0];
     const params = new URLSearchParams(searchParams.toString());
-    params.set("date", e.target.value);
+    params.set("date", iso);
     router.push(`/dashboard?${params.toString()}`);
   }
 
   return (
-    <input
-      type="date"
-      value={selectedDate}
-      max={today}
-      onChange={handleChange}
-      style={{
-        background: "color-mix(in srgb, var(--foreground) 8%, var(--background))",
-        color: "var(--foreground)",
-        border: "1px solid color-mix(in srgb, var(--foreground) 20%, transparent)",
-        borderRadius: "0.375rem",
-        padding: "0.375rem 0.75rem",
-        fontSize: "0.875rem",
-        outline: "none",
-        colorScheme: "dark light",
-      }}
+    <Calendar
+      mode="single"
+      selected={selected}
+      onSelect={handleSelect}
+      disabled={{ after: today }}
+      initialFocus
     />
   );
 }

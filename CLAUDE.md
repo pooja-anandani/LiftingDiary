@@ -4,6 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
+## Docs — Read First
+
+Before generating any code, **always read the relevant file(s) in `/docs`** and follow the standards defined there.
+
+- `/docs/ui.md` — UI standards. Must be read before writing any UI code.
+
 ## Commands
 
 ```bash
