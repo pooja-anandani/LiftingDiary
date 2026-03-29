@@ -1,94 +1,72 @@
 "use server";
 
-import { db } from "@/db";
-import { workouts, workoutExercises, exercises, sets } from "@/db/schema";
-import { eq, and, gte, lt } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
+import { db } from "@/db";
+import { workouts, workoutExercises, sets } from "@/db/schema";
+import { revalidatePath } from "next/cache";
 
-export async function getWorkoutsForDate(date: string) {
+export interface SetInput {
+  reps: number;
+  weightLbs: string | null;
+}
+
+export interface ExerciseInput {
+  exerciseId: number;
+  sets: SetInput[];
+}
+
+export interface CreateWorkoutInput {
+  name: string;
+  notes: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  exercises: ExerciseInput[];
+}
+
+export async function createWorkout(input: CreateWorkoutInput) {
   const { userId } = await auth();
-  if (!userId) return [];
+  if (!userId) throw new Error("Unauthorized");
 
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
+  const startedAt = new Date(`${input.date}T${input.startTime}:00`);
+  const endedAt = input.endTime
+    ? new Date(`${input.date}T${input.endTime}:00`)
+    : null;
 
-  const rows = await db
-    .select({
-      workoutId: workouts.id,
-      workoutName: workouts.name,
-      workoutNotes: workouts.notes,
-      startedAt: workouts.startedAt,
-      endedAt: workouts.endedAt,
-      exerciseName: exercises.name,
-      muscleGroup: exercises.muscleGroup,
-      setNumber: sets.setNumber,
-      reps: sets.reps,
-      weightLbs: sets.weightLbs,
+  const [workout] = await db
+    .insert(workouts)
+    .values({
+      userId,
+      name: input.name || null,
+      notes: input.notes || null,
+      startedAt,
+      endedAt,
     })
-    .from(workouts)
-    .leftJoin(workoutExercises, eq(workoutExercises.workoutId, workouts.id))
-    .leftJoin(exercises, eq(exercises.id, workoutExercises.exerciseId))
-    .leftJoin(sets, eq(sets.workoutExerciseId, workoutExercises.id))
-    .where(
-      and(
-        eq(workouts.userId, userId),
-        gte(workouts.startedAt, start),
-        lt(workouts.startedAt, end)
-      )
-    );
+    .returning({ id: workouts.id });
 
-  // Group by workout
-  const workoutMap = new Map<
-    number,
-    {
-      id: number;
-      name: string | null;
-      notes: string | null;
-      startedAt: Date;
-      endedAt: Date | null;
-      exercises: Map<
-        string,
-        { muscleGroup: string | null; sets: { setNumber: number; reps: number; weightLbs: string | null }[] }
-      >;
-    }
-  >();
+  for (let i = 0; i < input.exercises.length; i++) {
+    const ex = input.exercises[i];
 
-  for (const row of rows) {
-    if (!workoutMap.has(row.workoutId)) {
-      workoutMap.set(row.workoutId, {
-        id: row.workoutId,
-        name: row.workoutName,
-        notes: row.workoutNotes,
-        startedAt: row.startedAt,
-        endedAt: row.endedAt,
-        exercises: new Map(),
-      });
-    }
-    const workout = workoutMap.get(row.workoutId)!;
-    if (row.exerciseName) {
-      if (!workout.exercises.has(row.exerciseName)) {
-        workout.exercises.set(row.exerciseName, {
-          muscleGroup: row.muscleGroup,
-          sets: [],
-        });
-      }
-      if (row.setNumber != null && row.reps != null) {
-        workout.exercises.get(row.exerciseName)!.sets.push({
-          setNumber: row.setNumber,
-          reps: row.reps,
-          weightLbs: row.weightLbs,
-        });
-      }
+    const [we] = await db
+      .insert(workoutExercises)
+      .values({
+        workoutId: workout.id,
+        exerciseId: ex.exerciseId,
+        order: i,
+      })
+      .returning({ id: workoutExercises.id });
+
+    if (ex.sets.length > 0) {
+      await db.insert(sets).values(
+        ex.sets.map((s, idx) => ({
+          workoutExerciseId: we.id,
+          setNumber: idx + 1,
+          reps: s.reps,
+          weightLbs: s.weightLbs ?? null,
+        }))
+      );
     }
   }
 
-  return Array.from(workoutMap.values()).map((w) => ({
-    ...w,
-    exercises: Array.from(w.exercises.entries()).map(([name, data]) => ({
-      name,
-      ...data,
-    })),
-  }));
+  revalidatePath("/dashboard");
 }
