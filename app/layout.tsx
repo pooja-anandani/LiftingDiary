@@ -1,5 +1,14 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import {
+  ClerkProvider,
+  SignInButton,
+  SignUpButton,
+  Show,
+  UserButton,
+} from "@clerk/nextjs";
+import { Providers } from "./providers";
+import { ThemeToggle } from "./ThemeToggle";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,9 +34,31 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className="geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__varia..."
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <Providers>
+          <ClerkProvider>
+            <header className="border-b">
+              <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+                <span className="text-sm font-semibold tracking-tight">Lifting Diary</span>
+                <div className="flex items-center gap-2">
+                  <Show when="signed-out">
+                    <SignInButton mode="modal" />
+                    <SignUpButton mode="modal" />
+                  </Show>
+                  <Show when="signed-in">
+                    <UserButton />
+                  </Show>
+                  <ThemeToggle />
+                </div>
+              </div>
+            </header>
+            {children}
+          </ClerkProvider>
+        </Providers>
+      </body>
     </html>
   );
 }
